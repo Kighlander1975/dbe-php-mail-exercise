@@ -1,0 +1,21 @@
+RewriteEngine On
+
+# Basisverzeichnis setzen
+RewriteBase /DBE-exercises/dbe-php-mail/
+
+# Wenn die Anfrage direkt auf die Domain zeigt, zur index.php weiterleiten
+RewriteRule ^$ public/index.php [L]
+
+# Wenn die angeforderte Datei existiert, direkt darauf zugreifen
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+# Wenn das angeforderte Verzeichnis existiert, direkt darauf zugreifen
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Für alle PHP-Dateien im Hauptverzeichnis, im public-Ordner suchen
+RewriteRule ^([^/]+\.php)$ public/$1 [L]
+
+# Für Dateien in Unterordnern wie assets
+RewriteRule ^assets/(.*)$ public/assets/$1 [L]
