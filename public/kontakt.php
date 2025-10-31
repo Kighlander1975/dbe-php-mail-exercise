@@ -2,6 +2,10 @@
 // Composer Autoloader einbinden
 require_once __DIR__ . '/../vendor/autoload.php';
 
+// Konfiguration laden
+use App\Config\Config;
+Config::load();
+
 // Eigene Klassen importieren
 use App\Mail\MailService;
 
@@ -15,8 +19,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $betreff = $_POST['betreff'] ?? '';
     $nachricht = $_POST['nachricht'] ?? '';
     
-    // HTML-E-Mail-Inhalt erstellen
-    $emailBody = "
+    // MailService-Instanz erstellen
+    $mailService = new MailService();
+    
+    // E-Mail-Konfiguration aus der .env-Datei verwenden
+    $recipient = Config::get('TEST_MAIL_RECIPIENT', '');
+    
+    // 1. E-Mail an den Administrator (dich) senden
+    $adminEmailBody = "
         <h2>Neue Kontaktanfrage</h2>
         <p><strong>Name:</strong> {$name}</p>
         <p><strong>E-Mail:</strong> {$email}</p>
@@ -25,21 +35,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <p>{$nachricht}</p>
     ";
     
-    // MailService-Instanz erstellen und E-Mail senden
-    $mailService = new MailService();
+    $adminEmailSuccess = $mailService->sendEmail($recipient, 'Kontaktanfrage: ' . $betreff, $adminEmailBody, $name, $email);
     
-    // In einer echten Anwendung würden wir hier die E-Mail tatsächlich senden
-    // $success = $mailService->sendEmail('empfaenger@example.com', 'Kontaktanfrage: ' . $betreff, $emailBody, $name, $email);
-    
-    // Für dieses Beispiel simulieren wir einen erfolgreichen Versand
-    $success = true;
-    
-    if ($success) {
-        $message = "Vielen Dank für deine Nachricht, $name! Deine Anfrage wurde erfolgreich gesendet.";
+    // 2. Bestätigungs-E-Mail an den Absender senden
+    if ($adminEmailSuccess) {
+        $confirmationEmailBody = "
+            <h2>Vielen Dank für deine Nachricht!</h2>
+            <p>Hallo {$name},</p>
+            <p>wir haben deine Kontaktanfrage mit dem Betreff \"{$betreff}\" erhalten und werden uns so schnell wie möglich bei dir melden.</p>
+            <p>Hier ist eine Kopie deiner Nachricht:</p>
+            <p><em>{$nachricht}</em></p>
+            <p>Mit freundlichen Grüßen,<br>Das Team vom PHP Mail Übungsprojekt</p>
+        ";
+        
+        $userEmailSuccess = $mailService->sendEmail(
+            $email, 
+            'Bestätigung deiner Kontaktanfrage: ' . $betreff, 
+            $confirmationEmailBody, 
+            Config::get('MAIL_FROM_NAME', 'PHP Mail Übungsprojekt'), 
+            Config::get('MAIL_FROM_ADDRESS', '')
+        );
+        
+        $success = $adminEmailSuccess && $userEmailSuccess;
+        
+        if ($success) {
+            $message = "Vielen Dank für deine Nachricht, $name! Deine Anfrage wurde erfolgreich gesendet. Eine Bestätigungs-E-Mail wurde an deine E-Mail-Adresse geschickt.";
+        } else if ($adminEmailSuccess) {
+            $message = "Deine Nachricht wurde gesendet, aber die Bestätigungs-E-Mail konnte nicht zugestellt werden. Bitte überprüfe deine E-Mail-Adresse.";
+            $success = true; // Die Hauptfunktion (Kontaktanfrage) war erfolgreich
+        } else {
+            $message = "Es gab ein Problem beim Versenden deiner Nachricht. Bitte versuche es später erneut.";
+        }
     } else {
         $message = "Es gab ein Problem beim Versenden deiner Nachricht. Bitte versuche es später erneut.";
     }
 }
+
+// Debug-Modus aus der Konfiguration
+$debug = Config::get('APP_DEBUG', false);
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -90,6 +123,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border-color: #f5c6cb;
             color: #721c24;
         }
+        
+        .debug-info {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -127,6 +170,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             <button type="submit" class="btn">Nachricht senden</button>
         </form>
+        
+        <?php if ($debug): ?>
+        <div class="debug-info">
+            <h3>Debug-Informationen:</h3>
+            <p><strong>Mail-Host:</strong> <?php echo htmlspecialchars(Config::get('MAIL_HOST')); ?></p>
+            <p><strong>Mail-Port:</strong> <?php echo htmlspecialchars(Config::get('MAIL_PORT')); ?></p>
+            <p><strong>Mail-Absender:</strong> <?php echo htmlspecialchars(Config::get('MAIL_FROM_NAME')); ?> &lt;<?php echo htmlspecialchars(Config::get('MAIL_FROM_ADDRESS')); ?>&gt;</p>
+            <p><strong>Umgebung:</strong> <?php echo htmlspecialchars(Config::get('APP_ENV')); ?></p>
+        </div>
+        <?php endif; ?>
     </div>
 </body>
 </html>

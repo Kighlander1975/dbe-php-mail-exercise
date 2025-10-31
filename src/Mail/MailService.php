@@ -2,8 +2,12 @@
 
 namespace App\Mail;
 
+use App\Config\Config;
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
 /**
- * Eine einfache E-Mail-Service-Klasse, die PHPMailer verwendet
+ * Eine E-Mail-Service-Klasse, die PHPMailer verwendet und Konfigurationen aus .env nutzt
  */
 class MailService
 {
@@ -13,28 +17,33 @@ class MailService
      * @param string $to Empfänger-E-Mail-Adresse
      * @param string $subject Betreff der E-Mail
      * @param string $body Inhalt der E-Mail
-     * @param string $fromName Absendername (optional)
-     * @param string $fromEmail Absender-E-Mail-Adresse (optional)
+     * @param string $fromName Absendername (optional, wird aus .env geladen wenn nicht angegeben)
+     * @param string $fromEmail Absender-E-Mail-Adresse (optional, wird aus .env geladen wenn nicht angegeben)
      * @return bool True bei Erfolg, False bei Fehler
      */
     public function sendEmail(string $to, string $subject, string $body, string $fromName = '', string $fromEmail = ''): bool
     {
         try {
+            // E-Mail-Konfiguration aus .env laden
+            $config = Config::getMailConfig();
+            
             // PHPMailer-Instanz erstellen
-            $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+            $mail = new PHPMailer(true);
             
             // Server-Einstellungen
-            // $mail->SMTPDebug = \PHPMailer\PHPMailer\SMTP::DEBUG_SERVER; // Debug-Ausgabe aktivieren
-            $mail->isSMTP();                                           // SMTP verwenden
-            $mail->Host       = 'smtp.example.com';                    // SMTP-Server
-            $mail->SMTPAuth   = true;                                  // SMTP-Authentifizierung aktivieren
-            $mail->Username   = 'user@example.com';                    // SMTP-Benutzername
-            $mail->Password   = 'password';                            // SMTP-Passwort
-            $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS; // TLS aktivieren
-            $mail->Port       = 587;                                   // TCP-Port
+            $mail->isSMTP();
+            $mail->Host       = $config['host'];
+            $mail->SMTPAuth   = true;
+            $mail->Username   = $config['username'];
+            $mail->Password   = $config['password'];
+            $mail->SMTPSecure = $config['encryption'];
+            $mail->Port       = $config['port'];
             
             // Absender und Empfänger
-            $mail->setFrom($fromEmail ?: 'from@example.com', $fromName ?: 'Mail Service');
+            $mail->setFrom(
+                $fromEmail ?: $config['from_address'], 
+                $fromName ?: $config['from_name']
+            );
             $mail->addAddress($to);
             
             // Inhalt
@@ -45,7 +54,7 @@ class MailService
             
             // E-Mail senden
             return $mail->send();
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Fehlerbehandlung
             error_log('Fehler beim Senden der E-Mail: ' . $e->getMessage());
             return false;
